@@ -1,0 +1,88 @@
+#include <SFE_BMP180.h> // Basınç Sensör kütüphanesi
+#include <Wire.h> // I2C kütüphanesi
+ 
+SFE_BMP180 pressure; //sensör adı tanımlama
+ 
+double baseline; // Basınç değeri
+ 
+void setup()
+{
+Serial.begin(9600);
+if (pressure.begin())
+Serial.println("BMP180 Bağlanıldı");
+else
+{
+Serial.println("BMP180 Bağlanılamadı\n\n");
+while(1);
+}
+baseline = getPressure();
+ 
+Serial.print("Basınç: ");
+Serial.print(baseline);
+Serial.println(" mb");
+}
+ 
+void loop()
+{
+double a,P;
+ 
+P = getPressure();
+a = pressure.altitude(P,baseline);
+ 
+Serial.print("Yükseklik: ");
+if (a >= 0.0) Serial.print(" "); // Pozitif sayılarda boşlu ekle
+Serial.print(a,1);
+Serial.print(" meters, ");
+if (a >= 0.0) Serial.print(" "); // pozitif sayılarda boşluk ekle
+Serial.print(a*3.28084,0);
+Serial.println(" feet");
+ 
+delay(500);
+}
+double getPressure()
+{
+char status;
+double T,P,p0,a;
+ 
+// Önce bir basınç okuma gerçekleştirmek için bir sıcaklık ölçümünü almak gerekir.
+// Ölçüm birimi T saklanır
+// Kullan 'T' işlevine T adresini sağlamak.
+// Fonksiyon döner başarılı olursa 1, başarısızlık ise 0.
+status = pressure.startTemperature();//Bir sıcaklık ölçümü başlatılır
+if (status != 0) //
+{
+delay(status); // Ölçüm tamamlanması için bekle
+status = pressure.getTemperature(T); // T değerini ölç
+if (status != 0) //Sıfırdan faklı ise
+{
+status = pressure.startPressure(3);//Basınç ölçümünü başlat
+if (status != 0)
+{
+// Parametre 0 ila 3 örnekleme ayarı, (en yüksek res, uzun bekleme) 'dir.
+// Istek başarılı olursa beklemek ms sayısı döndürülür.
+// Istek başarısız olursa 0 döndürülür.
+ 
+delay(status);// Ölçümünü tamamlanmasını bekle
+ 
+// 'P' adresi sağlamak için
+// Not ayrıca işlev önceki sıcaklık ölçümü (T) gerektirir.
+// (Sıcaklık kararlı ise, basınç ölçümleri bir dizi için tek ısı ölçümü yapabilirsiniz.)
+// Fonksiyon döner başarılı olursa 1 , başarısızlık ise 0
+ 
+status = pressure.getPressure(P,T); //Tamamlanan basınç ölçümü Al :
+if (status != 0) //sıfıra eşit değilse
+{
+return(P); // Ölçüm birimi P saklanır
+}
+// P sıfıra eşitse
+else Serial.println("Basınç ölçümünde hata alındı\n");
+}
+// P sıfıra eşitse
+else Serial.println("Basınç Ölçümü başlatılamadı\n");
+}
+// T sıfıra eşitse
+else Serial.println("Sıcaklık değeri alınamadı\n");
+}
+// T sıfıra eşitse
+else Serial.println("Sıcaklık ölçümü başlatılamadı\n");
+}
