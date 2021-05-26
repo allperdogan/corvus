@@ -1,0 +1,155 @@
+#include <SFE_BMP180.h> // Basınç Sensör kütüphanesi
+#include <Wire.h> // I2C kütüphanesi
+#include <MPU6050_tockn.h>
+//GPS
+#include <TinyGPS.h>
+TinyGPS gps;
+#include <SoftwareSerial.h>
+SoftwareSerial ss(10, 11); //rx 
+
+ 
+SFE_BMP180 pressure; //sensör adı tanımlama
+float altitude;
+float initialAltitude;
+float maxAltitude = 0; 
+int n=0;
+double baseline; // Basınç değeri
+
+//MPU6050 START
+MPU6050 mpu6050(Wire);
+
+long timer = 0;
+ 
+void setup()
+{
+  
+Serial.begin(9600);
+ss.begin(9600); //GPS
+pinMode(7, OUTPUT);
+Wire.begin();
+mpu6050.begin();
+mpu6050.calcGyroOffsets(true);
+if (pressure.begin())
+Serial.println("BMP180 Bağlanıldı");
+else
+{
+Serial.println("BMP180 Bağlanılamadı\n\n");
+while(1);
+}
+baseline = getPressure();
+ 
+Serial.print("Basınç: ");
+Serial.print(baseline);
+Serial.println(" mb");
+}
+ 
+void loop()
+{
+smartdelay(1000);
+Serial.println();
+double a,P;
+ 
+P = getPressure();
+a = pressure.altitude(P,baseline);
+
+//MPU6050 ANGLE
+mpu6050.update();
+Serial.print("Pitch Acisi: ");
+Serial.println(mpu6050.getAngleX());
+float b =mpu6050.getAngleX();
+  
+ 
+Serial.print("Yükseklik: ");
+if (a >= 0.0) Serial.print(" "); // Pozitif sayılarda boşlu ekle
+Serial.print(a,1);
+Serial.print(" metre, ");
+if (a >= 0.0) Serial.print(" "); // pozitif sayılarda boşluk ekle
+Serial.print(a*3.28084,0);
+Serial.println(" feet");
+if(a>200){
+  if (a > maxAltitude) {
+          maxAltitude = a;           //save highest altitude
+        }
+  if (maxAltitude-a>0){
+          n++;
+          if(n>30){
+            digitalWrite(7, HIGH);
+          }
+          else{
+            digitalWrite(7, LOW);
+          }
+  }
+}
+
+
+//MPU6050 IF
+  if(b<30 || b>150){
+     digitalWrite(7, HIGH);
+    }
+  else{
+    digitalWrite(7, LOW);
+   }
+//GPS
+  uint8_t sat = gps.satellites();
+  Serial.print("Uydu Sayisi: "); Serial.println(sat);
+
+  float flat, flon;
+  unsigned long age;
+  gps.f_get_position(&flat, &flon, &age);
+  Serial.print("Enlem: "); Serial.println(flat, 6);
+  Serial.print("Boylam: "); Serial.println(flon, 6);
+
+  int alt = gps.f_altitude();
+  Serial.print("Rakım: "); Serial.println(alt);
+
+  int spd = gps.f_speed_kmph();
+  Serial.print("Hiz: "); Serial.println(spd);
+
+  int crs = gps.f_course();
+  Serial.print("Hata: "); Serial.println(crs);
+
+}
+static void smartdelay(unsigned long ms) {
+  unsigned long start = millis();
+  do {
+    while (ss.available())
+      gps.encode(ss.read());
+  } while (millis() - start < ms);
+}
+
+double getPressure()
+{
+char status;
+double T,P,p0,a;
+ 
+status = pressure.startTemperature();//Bir sıcaklık ölçümü başlatılır
+if (status != 0) //
+{
+delay(status); // Ölçüm tamamlanması için bekle
+status = pressure.getTemperature(T); // T değerini ölç
+if (status != 0) //Sıfırdan faklı ise
+{
+status = pressure.startPressure(3);//Basınç ölçümünü başlat
+if (status != 0)
+{
+
+delay(status);// Ölçümünü tamamlanmasını bekle
+ 
+ 
+status = pressure.getPressure(P,T); //Tamamlanan basınç ölçümü Al :
+if (status != 0) //sıfıra eşit değilse
+{
+return(P); // Ölçüm birimi P saklanır
+}
+// P sıfıra eşitse
+else Serial.println("Basınç ölçümünde hata alındı\n");
+}
+// P sıfıra eşitse
+else Serial.println("Basınç Ölçümü başlatılamadı\n");
+}
+// T sıfıra eşitse
+else Serial.println("Sıcaklık değeri alınamadı\n");
+}
+// T sıfıra eşitse
+else Serial.println("Sıcaklık ölçümü başlatılamadı\n");
+}
